@@ -1,18 +1,46 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function AddExpenseScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSave = () => {
-    // TODO: Implement expense saving logic
-    router.back();
+  const handleSave = async () => {
+    if (!description || !amount || !category) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const expenseData = {
+        description,
+        amount: parseFloat(amount),
+        category,
+        date,
+        userId: user?.uid,
+        createdAt: new Date().toISOString(),
+      };
+
+      await addDoc(collection(db, 'expenses'), expenseData);
+      Alert.alert('Success', 'Expense saved successfully');
+      router.back();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save expense');
+      console.error('Error saving expense:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -26,7 +54,7 @@ export default function AddExpenseScreen() {
 
       <View style={styles.form}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>Description *</Text>
           <TextInput
             style={styles.input}
             value={description}
@@ -36,7 +64,7 @@ export default function AddExpenseScreen() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount (KSH)</Text>
+          <Text style={styles.label}>Amount (KSH) *</Text>
           <TextInput
             style={styles.input}
             value={amount}
@@ -47,7 +75,7 @@ export default function AddExpenseScreen() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Category</Text>
+          <Text style={styles.label}>Category *</Text>
           <TextInput
             style={styles.input}
             value={category}
@@ -66,8 +94,14 @@ export default function AddExpenseScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save Expense</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, isSubmitting && styles.disabledButton]} 
+          onPress={handleSave}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.saveButtonText}>
+            {isSubmitting ? 'Saving...' : 'Save Expense'}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -123,5 +157,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#cccccc',
   },
 });
